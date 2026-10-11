@@ -1,3 +1,4 @@
+
 const express = require("express");
 const router = express.Router();
 
@@ -12,24 +13,17 @@ const {
 const { protect } = require("../middleware/authMiddleware");
 const { facultyOrAdmin } = require("../middleware/facultyMiddleware");
 
-// ==========================================
-// STUDENT ROUTES
-// Faculty and Admin only
-// ==========================================
-
-// Get all students
-// Create a new student
+// All authenticated users can view students.
 router
   .route("/")
-  .get(protect, facultyOrAdmin, getStudents)
+  .get(protect, getStudents)
   .post(protect, facultyOrAdmin, createStudent);
 
-// Get one student
-// Update one student
-// Delete one student
+// All authenticated users can view an individual student.
+// Only Faculty/Admin can update or delete records.
 router
   .route("/:id")
-  .get(protect, facultyOrAdmin, getStudentById)
+  .get(protect, getStudentById)
   .put(protect, facultyOrAdmin, updateStudent)
   .delete(protect, facultyOrAdmin, deleteStudent);
 

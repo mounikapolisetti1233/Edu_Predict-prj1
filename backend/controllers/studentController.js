@@ -1,52 +1,67 @@
+
 const Student = require("../models/Student");
 const Prediction = require("../models/Prediction");
 
-// @desc    Get all students
-// @route   GET /api/students
-// @access  Private
+// GET /api/students
+// Fetch students with optional search and department filters.
 const getStudents = async (req, res) => {
   try {
     const { search, department } = req.query;
-    let query = {};
+    const query = {};
 
-    if (search) {
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(
+        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
+
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { studentId: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
+        { name: searchRegex },
+        { studentId: searchRegex },
+        { email: searchRegex },
       ];
     }
 
-    if (department) {
+    if (department && department !== "All Departments") {
       query.department = department;
     }
 
-    const students = await Student.find(query).sort({ createdAt: -1 });
-    res.json(students);
+    const students = await Student.find(query).sort({
+      createdAt: -1,
+    });
+
+    return res.status(200).json(students);
   } catch (error) {
     console.error("Get Students Error:", error);
-    res.status(500).json({ message: "Failed to fetch students" });
+
+    return res.status(500).json({
+      message: "Failed to fetch students",
+    });
   }
 };
 
-// @desc    Get student by ID
-// @route   GET /api/students/:id
-// @access  Private
+// GET /api/students/:id
 const getStudentById = async (req, res) => {
   try {
     const student = await Student.findById(req.params.id);
+
     if (!student) {
-      return res.status(404).json({ message: "Student not found" });
+      return res.status(404).json({
+        message: "Student not found",
+      });
     }
-    res.json(student);
+
+    return res.status(200).json(student);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching student details" });
+    console.error("Get Student Error:", error);
+
+    return res.status(500).json({
+      message: "Error fetching student details",
+    });
   }
 };
 
-// @desc    Create a new student
-// @route   POST /api/students
-// @access  Private
+// POST /api/students
 const createStudent = async (req, res) => {
   try {
     const {
@@ -66,58 +81,36 @@ const createStudent = async (req, res) => {
       participationLevel,
     } = req.body;
 
-    // Validation
-    if (
-      !studentId ||
-      !name ||
-      age === undefined ||
-      !gender ||
-      !email ||
-      !department ||
-      !semester ||
-      previousPercentage === undefined ||
-      attendancePercentage === undefined ||
-      internalMarks === undefined ||
-      assignmentMarks === undefined ||
-      studyHoursPerDay === undefined ||
-      backlogs === undefined
-    ) {
-      return res.status(400).json({ message: "Please provide all required fields" });
-    }
-
-    // Range checks
-    if (previousPercentage < 0 || previousPercentage > 100) {
-      return res.status(400).json({ message: "Previous percentage must be between 0 and 100" });
-    }
-    if (attendancePercentage < 0 || attendancePercentage > 100) {
-      return res.status(400).json({ message: "Attendance percentage must be between 0 and 100" });
-    }
-    if (internalMarks < 0 || internalMarks > 100) {
-      return res.status(400).json({ message: "Internal marks must be between 0 and 100" });
-    }
-    if (assignmentMarks < 0 || assignmentMarks > 100) {
-      return res.status(400).json({ message: "Assignment marks must be between 0 and 100" });
-    }
-    if (studyHoursPerDay < 0 || studyHoursPerDay > 24) {
-      return res.status(400).json({ message: "Study hours must be between 0 and 24" });
-    }
-    if (backlogs < 0) {
-      return res.status(400).json({ message: "Backlogs cannot be negative" });
-    }
-
-    // Check duplicate studentId
-    const existingStudent = await Student.findOne({ studentId });
-    if (existingStudent) {
-      return res.status(400).json({ message: `Student ID '${studentId}' already exists` });
-    }
-
-    const student = await Student.create({
+    const requiredFields = {
       studentId,
       name,
-      age: Number(age),
+      age,
       gender,
       email,
       department,
+      semester,
+      previousPercentage,
+      attendancePercentage,
+      internalMarks,
+      assignmentMarks,
+      studyHoursPerDay,
+      backlogs,
+    };
+
+    for (const [field, value] of Object.entries(requiredFields)) {
+      if (
+        value === undefined ||
+        value === null ||
+        String(value).trim() === ""
+      ) {
+        return res.status(400).json({
+          message: `${field} is required`,
+        });
+      }
+    }
+
+    const numericFields = {
+      age: Number(age),
       semester: Number(semester),
       previousPercentage: Number(previousPercentage),
       attendancePercentage: Number(attendancePercentage),
@@ -125,63 +118,213 @@ const createStudent = async (req, res) => {
       assignmentMarks: Number(assignmentMarks),
       studyHoursPerDay: Number(studyHoursPerDay),
       backlogs: Number(backlogs),
+    };
+
+    for (const [field, value] of Object.entries(numericFields)) {
+      if (!Number.isFinite(value)) {
+        return res.status(400).json({
+          message: `${field} must be a valid number`,
+        });
+      }
+    }
+
+    if (numericFields.previousPercentage < 0 ||
+        numericFields.previousPercentage > 100) {
+      return res.status(400).json({
+        message: "Previous percentage must be between 0 and 100",
+      });
+    }
+
+    if (numericFields.attendancePercentage < 0 ||
+        numericFields.attendancePercentage > 100) {
+      return res.status(400).json({
+        message: "Attendance percentage must be between 0 and 100",
+      });
+    }
+
+    if (numericFields.internalMarks < 0 ||
+        numericFields.internalMarks > 100) {
+      return res.status(400).json({
+        message: "Internal marks must be between 0 and 100",
+      });
+    }
+
+    if (numericFields.assignmentMarks < 0 ||
+        numericFields.assignmentMarks > 100) {
+      return res.status(400).json({
+        message: "Assignment marks must be between 0 and 100",
+      });
+    }
+
+    if (numericFields.studyHoursPerDay < 0 ||
+        numericFields.studyHoursPerDay > 24) {
+      return res.status(400).json({
+        message: "Study hours must be between 0 and 24",
+      });
+    }
+
+    if (numericFields.backlogs < 0) {
+      return res.status(400).json({
+        message: "Backlogs cannot be negative",
+      });
+    }
+
+    if (numericFields.age < 15 || numericFields.age > 100) {
+      return res.status(400).json({
+        message: "Age must be between 15 and 100",
+      });
+    }
+
+    if (numericFields.semester < 1 ||
+        numericFields.semester > 12 ||
+        !Number.isInteger(numericFields.semester)) {
+      return res.status(400).json({
+        message: "Semester must be an integer between 1 and 12",
+      });
+    }
+
+    const normalizedStudentId = studentId.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingStudent = await Student.findOne({
+      studentId: normalizedStudentId,
+    });
+
+    if (existingStudent) {
+      return res.status(409).json({
+        message: `Student ID '${normalizedStudentId}' already exists`,
+      });
+    }
+
+    const student = await Student.create({
+      studentId: normalizedStudentId,
+      name: name.trim(),
+      age: numericFields.age,
+      gender,
+      email: normalizedEmail,
+      department: department.trim(),
+      semester: numericFields.semester,
+      previousPercentage: numericFields.previousPercentage,
+      attendancePercentage: numericFields.attendancePercentage,
+      internalMarks: numericFields.internalMarks,
+      assignmentMarks: numericFields.assignmentMarks,
+      studyHoursPerDay: numericFields.studyHoursPerDay,
+      backlogs: numericFields.backlogs,
       participationLevel: participationLevel || "Medium",
       createdBy: req.user._id,
     });
 
-    res.status(201).json(student);
+    return res.status(201).json(student);
   } catch (error) {
     console.error("Create Student Error:", error);
-    res.status(500).json({ message: error.message || "Failed to create student record" });
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "This Student ID already exists",
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      message: "Failed to create student record",
+      error: error.message,
+    });
   }
 };
 
-// @desc    Update student details
-// @route   PUT /api/students/:id
-// @access  Private
+// PUT /api/students/:id
 const updateStudent = async (req, res) => {
   try {
     const student = await Student.findById(req.params.id);
+
     if (!student) {
-      return res.status(404).json({ message: "Student not found" });
+      return res.status(404).json({
+        message: "Student not found",
+      });
     }
 
-    // Check duplicate studentId if changed
-    if (req.body.studentId && req.body.studentId !== student.studentId) {
-      const duplicate = await Student.findOne({ studentId: req.body.studentId });
-      if (duplicate) {
-        return res.status(400).json({ message: "Student ID already exists for another student" });
+    const allowedFields = [
+      "studentId",
+      "name",
+      "age",
+      "gender",
+      "email",
+      "department",
+      "semester",
+      "previousPercentage",
+      "attendancePercentage",
+      "internalMarks",
+      "assignmentMarks",
+      "studyHoursPerDay",
+      "backlogs",
+      "participationLevel",
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        student[field] = req.body[field];
       }
     }
 
-    Object.assign(student, req.body);
+    if (student.email) {
+      student.email = student.email.trim().toLowerCase();
+    }
+
     const updatedStudent = await student.save();
 
-    res.json(updatedStudent);
+    return res.status(200).json(updatedStudent);
   } catch (error) {
     console.error("Update Student Error:", error);
-    res.status(500).json({ message: error.message || "Failed to update student" });
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "Student ID already exists",
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      message: "Failed to update student",
+    });
   }
 };
 
-// @desc    Delete student record
-// @route   DELETE /api/students/:id
-// @access  Private
+// DELETE /api/students/:id
 const deleteStudent = async (req, res) => {
   try {
     const student = await Student.findById(req.params.id);
+
     if (!student) {
-      return res.status(404).json({ message: "Student not found" });
+      return res.status(404).json({
+        message: "Student not found",
+      });
     }
 
-    // Delete related predictions
-    await Prediction.deleteMany({ student: student._id });
+    await Prediction.deleteMany({
+      student: student._id,
+    });
+
     await student.deleteOne();
 
-    res.json({ message: "Student and associated predictions deleted successfully" });
+    return res.status(200).json({
+      message: "Student and associated predictions deleted successfully",
+    });
   } catch (error) {
     console.error("Delete Student Error:", error);
-    res.status(500).json({ message: "Failed to delete student" });
+
+    return res.status(500).json({
+      message: "Failed to delete student",
+    });
   }
 };
 

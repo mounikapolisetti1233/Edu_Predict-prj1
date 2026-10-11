@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const studentSchema = new mongoose.Schema(
@@ -10,7 +11,7 @@ const studentSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
+      required: [true, "Student name is required"],
       trim: true,
     },
     age: {
@@ -26,14 +27,9 @@ const studentSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
+      required: [true, "Email is required"],
       trim: true,
       lowercase: true,
-    },
-
-    password: {
-      type:String, 
-      required:true
     },
     department: {
       type: String,
